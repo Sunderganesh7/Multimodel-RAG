@@ -1,10 +1,4 @@
-Absolutely. Your current README works, but it looks more like a basic student-project README. For GitHub, I would make it more polished, structured, and portfolio-ready.
 
-I would also avoid locking the README to a specific Gemini model version unless that is guaranteed to match your current code.
-
-Replace your **entire `README.md`** with this:
-
-```markdown
 # Multimodal RAG Chatbot
 
 > A modern AI-powered knowledge assistant that understands documents, images, and voice input using Retrieval-Augmented Generation (RAG).
