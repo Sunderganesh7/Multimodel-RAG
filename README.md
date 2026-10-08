@@ -511,6 +511,3 @@ npm start
 → port 3000
 ```
 
-which is why the Render deployment section above uses `npm install` and `npm start`. Pasted text
-
-This version will look much more professional on GitHub and in a placement/project portfolio.
