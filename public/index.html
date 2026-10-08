@@ -1,0 +1,1688 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Nexus RAG · Multimodal AI Workspace</title>
+  <meta name="description" content="Professional multimodal RAG AI workspace — upload documents, images, and audio, then chat with your knowledge." />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Tesseract.js for OCR (client-side) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <!-- PDF.js for PDF text extraction -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- Mammoth.js for DOCX text extraction -->
+  <script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
+
+  <style>
+    /* ============================================================
+       DESIGN TOKENS
+    ============================================================ */
+    :root {
+      --bg-base:        #0a0b0f;
+      --bg-surface:     #10121a;
+      --bg-elevated:    #14172200;
+      --bg-card:        #161922;
+      --bg-hover:       #1c2030;
+      --bg-active:      #1e2538;
+
+      --border:         rgba(255,255,255,0.07);
+      --border-strong:  rgba(255,255,255,0.12);
+      --border-accent:  rgba(99,102,241,0.5);
+
+      --accent:         #6366f1;
+      --accent-2:       #818cf8;
+      --accent-glow:    rgba(99,102,241,0.2);
+      --accent-subtle:  rgba(99,102,241,0.08);
+      --cyan:           #22d3ee;
+      --green:          #10b981;
+      --green-soft:     rgba(16,185,129,0.12);
+
+      --text-1:         #f1f5f9;
+      --text-2:         #94a3b8;
+      --text-3:         #475569;
+      --text-accent:    #a5b4fc;
+
+      --sidebar-w:      240px;
+      --topbar-h:       56px;
+      --radius-sm:      6px;
+      --radius-md:      10px;
+      --radius-lg:      16px;
+      --radius-xl:      22px;
+
+      --shadow-sm:      0 1px 3px rgba(0,0,0,0.5);
+      --shadow-md:      0 4px 20px rgba(0,0,0,0.5);
+      --shadow-lg:      0 8px 40px rgba(0,0,0,0.6);
+
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --transition: 0.18s ease;
+    }
+
+    /* ============================================================
+       RESET & BASE
+    ============================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { height: 100%; }
+    body {
+      height: 100%;
+      font-family: var(--font);
+      font-size: 14px;
+      color: var(--text-1);
+      background: var(--bg-base);
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button, input, textarea, select { font-family: inherit; }
+    a { color: inherit; text-decoration: none; }
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
+
+    /* ============================================================
+       LAYOUT
+    ============================================================ */
+    .app {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      animation: app-in 0.4s ease-out both;
+    }
+
+    @keyframes app-in {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+
+    /* ============================================================
+       SIDEBAR
+    ============================================================ */
+    .sidebar {
+      width: var(--sidebar-w);
+      min-width: var(--sidebar-w);
+      height: 100%;
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: transform var(--transition), width var(--transition);
+      z-index: 20;
+    }
+
+    .sidebar-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 18px 16px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, var(--accent), #a78bfa);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    .logo-text {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: var(--text-1);
+      line-height: 1.1;
+    }
+    .logo-text span {
+      display: block;
+      font-size: 10px;
+      font-weight: 400;
+      color: var(--text-2);
+      letter-spacing: 0.02em;
+    }
+
+    .sidebar-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .sidebar-section-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      padding: 10px 8px 4px;
+    }
+
+    .sidebar-item {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 10px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-2);
+      transition: background var(--transition), color var(--transition);
+      border: 1px solid transparent;
+      user-select: none;
+    }
+    .sidebar-item:hover {
+      background: var(--bg-hover);
+      color: var(--text-1);
+    }
+    .sidebar-item.active {
+      background: var(--accent-subtle);
+      color: var(--text-accent);
+      border-color: var(--border-accent);
+    }
+    .sidebar-item .item-icon {
+      font-size: 15px;
+      width: 18px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .new-chat-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin: 12px 10px 4px;
+      padding: 9px 14px;
+      border-radius: var(--radius-md);
+      background: linear-gradient(135deg, var(--accent), #818cf8);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 4px 16px var(--accent-glow);
+      transition: opacity var(--transition), transform var(--transition), box-shadow var(--transition);
+      letter-spacing: 0.02em;
+    }
+    .new-chat-btn:hover {
+      opacity: 0.92;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 22px var(--accent-glow);
+    }
+    .new-chat-btn:active { transform: none; }
+
+    /* File chips in sidebar */
+    .file-chip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: var(--radius-md);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text-2);
+      cursor: default;
+      position: relative;
+      overflow: hidden;
+      animation: chip-in 0.25s ease both;
+    }
+    @keyframes chip-in {
+      from { opacity: 0; transform: translateX(-8px); }
+      to   { opacity: 1; transform: none; }
+    }
+    .file-chip .chip-icon { font-size: 13px; flex-shrink: 0; }
+    .file-chip .chip-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 500;
+      color: var(--text-1);
+    }
+    .file-chip .chip-badge {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 99px;
+      background: var(--green-soft);
+      color: var(--green);
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .sidebar-footer {
+      padding: 12px 10px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .sys-status {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 11px;
+      color: var(--text-3);
+    }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      animation: pulse-dot 2.5s infinite;
+      flex-shrink: 0;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { box-shadow: 0 0 8px var(--green); }
+      50%       { box-shadow: 0 0 14px var(--green); }
+    }
+
+    /* ============================================================
+       MAIN COLUMN
+    ============================================================ */
+    .main-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* TOP BAR */
+    .topbar {
+      height: var(--topbar-h);
+      min-height: var(--topbar-h);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(10,11,15,0.85);
+      backdrop-filter: blur(12px);
+      z-index: 10;
+    }
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .topbar-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-1);
+      letter-spacing: 0.01em;
+    }
+    .topbar-pill {
+      font-size: 11px;
+      padding: 3px 9px;
+      border-radius: 99px;
+      background: var(--green-soft);
+      color: var(--green);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .icon-btn {
+      width: 34px;
+      height: 34px;
+      border-radius: var(--radius-md);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      transition: background var(--transition), border-color var(--transition);
+      flex-shrink: 0;
+    }
+    .icon-btn:hover { background: var(--bg-hover); border-color: var(--border-strong); }
+
+    /* Menu toggle */
+    .menu-toggle {
+      display: none;
+      width: 34px;
+      height: 34px;
+      border-radius: var(--radius-md);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      transition: background var(--transition);
+    }
+    .menu-toggle:hover { background: var(--bg-hover); }
+
+    /* ============================================================
+       WORKSPACE (split: knowledge + chat)
+    ============================================================ */
+    .workspace {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      overflow: hidden;
+    }
+
+    /* ============================================================
+       KNOWLEDGE PANEL (left of workspace)
+    ============================================================ */
+    .knowledge-panel {
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg-surface);
+    }
+
+    .panel-header {
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .panel-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-1);
+      margin-bottom: 3px;
+    }
+    .panel-subtitle {
+      font-size: 12px;
+      color: var(--text-2);
+      line-height: 1.5;
+    }
+
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* Source cards */
+    .source-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      transition: border-color var(--transition), box-shadow var(--transition);
+    }
+    .source-card:hover { border-color: var(--border-strong); }
+
+    .source-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .source-card-title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .source-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .si-doc  { background: rgba(99,102,241,0.12); }
+    .si-img  { background: rgba(34,211,238,0.12); }
+    .si-audio{ background: rgba(251,146,60,0.12); }
+
+    .source-card-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-1);
+    }
+    .source-card-types {
+      font-size: 11px;
+      color: var(--text-2);
+      margin-top: 1px;
+    }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 1.5px dashed var(--border-strong);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color var(--transition), background var(--transition);
+      margin-bottom: 10px;
+      position: relative;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: var(--accent-subtle);
+    }
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+    .drop-zone-icon { font-size: 22px; margin-bottom: 6px; display: block; }
+    .drop-zone-text { font-size: 12px; color: var(--text-2); }
+    .drop-zone-text strong { color: var(--text-accent); }
+    .drop-zone-hint { font-size: 11px; color: var(--text-3); margin-top: 3px; }
+
+    /* Card status line */
+    .card-status {
+      font-size: 11px;
+      color: var(--text-2);
+      margin-top: 8px;
+      min-height: 16px;
+      transition: color var(--transition);
+    }
+    .card-status.success { color: var(--green); }
+    .card-status.error   { color: #f87171; }
+
+    /* Primary action button */
+    .btn-primary {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 9px 14px;
+      border-radius: var(--radius-md);
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 14px var(--accent-glow);
+      transition: opacity var(--transition), transform var(--transition), box-shadow var(--transition);
+      letter-spacing: 0.01em;
+    }
+    .btn-primary:hover:not(:disabled) {
+      opacity: 0.9;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px var(--accent-glow);
+    }
+    .btn-primary:active:not(:disabled) { transform: none; }
+    .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 7px 12px;
+      border-radius: var(--radius-md);
+      background: var(--bg-elevated);
+      color: var(--text-2);
+      font-size: 12px;
+      font-weight: 500;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: background var(--transition), color var(--transition), border-color var(--transition);
+    }
+    .btn-secondary:hover:not(:disabled) {
+      background: var(--bg-hover);
+      color: var(--text-1);
+      border-color: var(--border-strong);
+    }
+    .btn-secondary.active, .btn-secondary.recording {
+      background: rgba(239,68,68,0.1);
+      color: #f87171;
+      border-color: rgba(239,68,68,0.4);
+    }
+    .btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Progress bar */
+    .progress-bar-wrap {
+      height: 3px;
+      background: var(--border);
+      border-radius: 99px;
+      overflow: hidden;
+      margin-top: 8px;
+      display: none;
+    }
+    .progress-bar-wrap.visible { display: block; }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--cyan));
+      border-radius: 99px;
+      width: 0%;
+      animation: progress-anim 1.6s ease-in-out infinite;
+    }
+    @keyframes progress-anim {
+      0%   { transform: translateX(-100%); width: 60%; }
+      50%  { width: 80%; }
+      100% { transform: translateX(200%); width: 60%; }
+    }
+
+    /* Audio transcript preview */
+    .transcript-preview {
+      font-size: 12px;
+      color: var(--text-2);
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 10px;
+      min-height: 44px;
+      max-height: 80px;
+      overflow-y: auto;
+      margin-bottom: 8px;
+      line-height: 1.5;
+      display: none;
+    }
+    .transcript-preview.visible { display: block; }
+
+    /* OCR image preview */
+    .img-preview-wrap {
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      margin-bottom: 8px;
+      display: none;
+      border: 1px solid var(--border);
+    }
+    .img-preview-wrap.visible { display: block; }
+    .img-preview-wrap img {
+      width: 100%;
+      max-height: 100px;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* ============================================================
+       CHAT PANEL
+    ============================================================ */
+    .chat-panel {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg-base);
+      position: relative;
+    }
+
+    .chat-panel-header {
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .chat-panel-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-1);
+    }
+    .chat-panel-sub {
+      font-size: 12px;
+      color: var(--text-2);
+      margin-top: 2px;
+    }
+
+    /* Messages */
+    .messages-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      scroll-behavior: smooth;
+    }
+
+    /* Empty state */
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 24px;
+      text-align: center;
+    }
+    .empty-icon {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: var(--accent-subtle);
+      border: 1px solid var(--border-accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      margin-bottom: 18px;
+      animation: float 4s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50%       { transform: translateY(-6px); }
+    }
+    .empty-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text-1);
+      margin-bottom: 6px;
+    }
+    .empty-sub {
+      font-size: 13px;
+      color: var(--text-2);
+      line-height: 1.6;
+      max-width: 340px;
+    }
+    .suggestion-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 22px;
+      width: 100%;
+      max-width: 480px;
+    }
+    .suggestion-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 10px 13px;
+      font-size: 12px;
+      color: var(--text-2);
+      cursor: pointer;
+      text-align: left;
+      transition: background var(--transition), border-color var(--transition), color var(--transition);
+      line-height: 1.4;
+    }
+    .suggestion-btn:hover {
+      background: var(--bg-hover);
+      border-color: var(--border-accent);
+      color: var(--text-1);
+    }
+
+    /* Message rows */
+    .msg-row {
+      display: flex;
+      gap: 10px;
+      animation: msg-in 0.25s ease both;
+    }
+    @keyframes msg-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: none; }
+    }
+    .msg-row.user { justify-content: flex-end; }
+    .msg-row.bot  { justify-content: flex-start; }
+
+    /* Bot avatar */
+    .msg-avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .msg-bubble {
+      max-width: 72%;
+      padding: 11px 15px;
+      font-size: 13.5px;
+      line-height: 1.65;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+    }
+    .msg-bubble.user {
+      background: linear-gradient(135deg, var(--accent), #818cf8);
+      color: #fff;
+      border-radius: var(--radius-lg) var(--radius-lg) 4px var(--radius-lg);
+      box-shadow: 0 4px 12px var(--accent-glow);
+    }
+    .msg-bubble.bot {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-1);
+      border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) 4px;
+    }
+    .msg-bubble.error {
+      background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.25);
+      color: #fca5a5;
+      border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) 4px;
+    }
+
+    /* Typing indicator */
+    .typing-indicator {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0;
+    }
+    .typing-dots {
+      display: flex;
+      gap: 4px;
+      padding: 10px 14px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) 4px;
+    }
+    .typing-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text-3);
+      animation: dot-bounce 1.2s ease-in-out infinite;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes dot-bounce {
+      0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+      40%           { transform: translateY(-5px); opacity: 1; }
+    }
+    .typing-label { font-size: 12px; color: var(--text-3); }
+
+    /* ============================================================
+       CHAT COMPOSER
+    ============================================================ */
+    .composer-wrap {
+      padding: 14px 24px 18px;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+      background: var(--bg-base);
+    }
+
+    .composer {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-lg);
+      padding: 10px 10px 10px 16px;
+      transition: border-color var(--transition), box-shadow var(--transition);
+    }
+    .composer:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    #chatInput {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text-1);
+      font-size: 14px;
+      resize: none;
+      min-height: 22px;
+      max-height: 150px;
+      line-height: 1.5;
+      padding: 0;
+    }
+    #chatInput::placeholder { color: var(--text-3); }
+
+    .composer-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    #sendChatBtn {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-md);
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      color: #fff;
+      transition: opacity var(--transition), transform var(--transition);
+      box-shadow: 0 4px 12px var(--accent-glow);
+      flex-shrink: 0;
+    }
+    #sendChatBtn:hover:not(:disabled) { opacity: 0.88; transform: scale(1.05); }
+    #sendChatBtn:active:not(:disabled) { transform: scale(0.97); }
+    #sendChatBtn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
+
+    .composer-hint {
+      font-size: 11px;
+      color: var(--text-3);
+      margin-top: 8px;
+      text-align: center;
+    }
+
+    /* ============================================================
+       OVERLAY (mobile sidebar)
+    ============================================================ */
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 15;
+      backdrop-filter: blur(2px);
+    }
+    .sidebar-overlay.active { display: block; }
+
+    /* ============================================================
+       RESPONSIVE
+    ============================================================ */
+    @media (max-width: 1100px) {
+      .workspace {
+        grid-template-columns: 320px 1fr;
+      }
+    }
+    @media (max-width: 900px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+      .knowledge-panel {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 18;
+        width: 100%;
+        max-width: 420px;
+      }
+      .knowledge-panel.open { display: flex; }
+      .menu-toggle { display: flex; }
+    }
+    @media (max-width: 700px) {
+      .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        transform: translateX(-100%);
+        z-index: 20;
+      }
+      .sidebar.open { transform: translateX(0); }
+      .composer-wrap { padding: 10px 14px 14px; }
+      .messages-area { padding: 16px; }
+      .suggestion-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ============================================================
+       UTILITY
+    ============================================================ */
+    .hidden { display: none !important; }
+    .mt-8 { margin-top: 8px; }
+    .flex-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+
+<!-- Mobile sidebar overlay -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<div class="app">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">⚡</div>
+      <div class="logo-text">
+        Nexus RAG
+        <span>Multimodal AI Workspace</span>
+      </div>
+    </div>
+
+    <div class="sidebar-body">
+      <button class="new-chat-btn" id="newChatBtn">
+        ✦ New Conversation
+      </button>
+
+      <div class="sidebar-section-label">Navigation</div>
+      <div class="sidebar-item active" id="navKnowledge">
+        <span class="item-icon">📚</span> Knowledge Base
+      </div>
+      <div class="sidebar-item" id="navChat">
+        <span class="item-icon">💬</span> AI Chat
+      </div>
+
+      <div class="sidebar-section-label">Indexed Sources</div>
+      <div id="fileList">
+        <div style="font-size:11px;color:var(--text-3);padding:4px 8px;">No sources indexed yet</div>
+      </div>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="sys-status">
+        <div class="status-dot"></div>
+        System Online · Gemini 3.5 Flash
+      </div>
+      <div class="sys-status" style="margin-left: 14px;">
+        RAG · Embeddings · OCR · Speech
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN COLUMN ===================== -->
+  <div class="main-col">
+
+    <!-- TOP BAR -->
+    <nav class="topbar">
+      <div class="topbar-left">
+        <div class="menu-toggle icon-btn" id="menuToggle" title="Toggle sidebar">☰</div>
+        <span class="topbar-title">Multimodal RAG Workspace</span>
+        <span class="topbar-pill">
+          <span class="status-dot" style="width:6px;height:6px;box-shadow:none;animation:none;"></span>
+          System Online
+        </span>
+      </div>
+      <div class="topbar-right">
+        <button class="icon-btn" id="knowledgeToggleBtn" title="Toggle Knowledge Panel" style="display:none;">📋</button>
+        <div class="icon-btn" title="Settings">⚙️</div>
+        <div class="icon-btn" title="Profile" style="background: linear-gradient(135deg,var(--accent),var(--accent-2));border:none;">👤</div>
+      </div>
+    </nav>
+
+    <!-- WORKSPACE -->
+    <div class="workspace">
+
+      <!-- ===== KNOWLEDGE PANEL ===== -->
+      <div class="knowledge-panel" id="knowledgePanel">
+        <div class="panel-header">
+          <div class="panel-title">Knowledge Base</div>
+          <div class="panel-subtitle">Upload documents, images, or audio to give your AI contextual knowledge.</div>
+        </div>
+
+        <div class="panel-body">
+
+          <!-- Documents card -->
+          <div class="source-card" id="docCard">
+            <div class="source-card-header">
+              <div class="source-card-title-row">
+                <div class="source-icon si-doc">📄</div>
+                <div>
+                  <div class="source-card-name">Documents</div>
+                  <div class="source-card-types">PDF · DOCX · TXT</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="drop-zone" id="docDropZone">
+              <input type="file" id="textFileInput" accept=".txt,.pdf,.docx" />
+              <span class="drop-zone-icon">📂</span>
+              <div class="drop-zone-text"><strong>Click or drag</strong> your file here</div>
+              <div class="drop-zone-hint">.txt, .pdf, .docx supported</div>
+            </div>
+
+            <div id="docFileName" class="card-status" style="margin-bottom:8px;"></div>
+
+            <div class="progress-bar-wrap" id="docProgress">
+              <div class="progress-bar-fill"></div>
+            </div>
+
+            <button class="btn-primary" id="uploadTextBtn">
+              <span>⬆</span> Upload & Index Document
+            </button>
+
+            <div class="card-status" id="docStatus"></div>
+          </div>
+
+          <!-- Images card -->
+          <div class="source-card" id="imgCard">
+            <div class="source-card-header">
+              <div class="source-card-title-row">
+                <div class="source-icon si-img">🖼️</div>
+                <div>
+                  <div class="source-card-name">Images</div>
+                  <div class="source-card-types">OCR text extraction</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="img-preview-wrap" id="imgPreviewWrap">
+              <img id="imgPreview" src="" alt="Preview" />
+            </div>
+
+            <div class="drop-zone" id="imgDropZone">
+              <input type="file" id="imageInput" accept="image/*" />
+              <span class="drop-zone-icon">🖼️</span>
+              <div class="drop-zone-text"><strong>Click or drag</strong> an image here</div>
+              <div class="drop-zone-hint">Tesseract OCR will extract text</div>
+            </div>
+
+            <div class="progress-bar-wrap" id="ocrProgress">
+              <div class="progress-bar-fill"></div>
+            </div>
+
+            <button class="btn-primary mt-8" id="ocrBtn">
+              <span>🔍</span> Extract & Index via OCR
+            </button>
+
+            <div class="card-status" id="ocrStatus"></div>
+          </div>
+
+          <!-- Audio card -->
+          <div class="source-card" id="audioCard">
+            <div class="source-card-header">
+              <div class="source-card-title-row">
+                <div class="source-icon si-audio">🎙️</div>
+                <div>
+                  <div class="source-card-name">Audio / Speech</div>
+                  <div class="source-card-types">Web Speech API — live mic</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="transcript-preview" id="audioText"></div>
+
+            <div class="flex-row mt-8">
+              <button class="btn-secondary" id="audioBtn" style="flex:1;">
+                🎙 Start Recording
+              </button>
+              <button class="btn-secondary" id="sendAudioTextBtn" style="flex:1;">
+                ⬆ Upload Transcript
+              </button>
+            </div>
+
+            <div class="card-status" id="audioStatus"></div>
+          </div>
+
+        </div><!-- /panel-body -->
+      </div><!-- /knowledge-panel -->
+
+      <!-- ===== CHAT PANEL ===== -->
+      <div class="chat-panel">
+        <div class="chat-panel-header">
+          <div>
+            <div class="chat-panel-title">AI Assistant</div>
+            <div class="chat-panel-sub">Ask questions about your indexed knowledge</div>
+          </div>
+          <div class="flex-row">
+            <div class="icon-btn" id="clearChatBtn" title="Clear conversation">🗑️</div>
+          </div>
+        </div>
+
+        <!-- Messages -->
+        <div class="messages-area" id="chat">
+          <!-- Empty state (replaced once first message added) -->
+          <div class="empty-state" id="emptyState">
+            <div class="empty-icon">✦</div>
+            <div class="empty-title">Ask anything about your knowledge</div>
+            <div class="empty-sub">Upload a document, image, or audio recording on the left, then ask a question below.</div>
+            <div class="suggestion-grid">
+              <button class="suggestion-btn" data-msg="What is the main topic of this document?">
+                📄 What is the main topic of this document?
+              </button>
+              <button class="suggestion-btn" data-msg="Summarize the uploaded file for me.">
+                📝 Summarize the uploaded file
+              </button>
+              <button class="suggestion-btn" data-msg="What does this image show?">
+                🖼️ What does this image show?
+              </button>
+              <button class="suggestion-btn" data-msg="Explain the important findings.">
+                🔍 Explain the important findings
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Composer -->
+        <div class="composer-wrap">
+          <div class="composer">
+            <textarea id="chatInput" placeholder="Ask something about your uploaded content…" rows="1"></textarea>
+            <div class="composer-actions">
+              <div class="icon-btn" id="micChatBtn" title="Voice input" style="cursor:pointer;">🎤</div>
+              <button id="sendChatBtn" title="Send (Enter)">➤</button>
+            </div>
+          </div>
+          <div class="composer-hint">Press <strong>Enter</strong> to send · <strong>Shift+Enter</strong> for new line</div>
+        </div>
+
+      </div><!-- /chat-panel -->
+
+    </div><!-- /workspace -->
+  </div><!-- /main-col -->
+</div><!-- /app -->
+
+
+<script>
+  /* ============================================================
+     CONFIGURE PDF.js worker
+  ============================================================ */
+  if (window.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  }
+
+  /* ============================================================
+     BACKEND BASE — same as original (empty = relative to server)
+  ============================================================ */
+  const FUNCTIONS_BASE = "";
+
+  /* ============================================================
+     DOM REFS — all existing IDs preserved
+  ============================================================ */
+  const textFileInput    = document.getElementById("textFileInput");
+  const uploadTextBtn    = document.getElementById("uploadTextBtn");
+  const docStatus        = document.getElementById("docStatus");
+  const docProgress      = document.getElementById("docProgress");
+  const docFileName      = document.getElementById("docFileName");
+  const docDropZone      = document.getElementById("docDropZone");
+
+  const imageInput       = document.getElementById("imageInput");
+  const ocrBtn           = document.getElementById("ocrBtn");
+  const ocrStatus        = document.getElementById("ocrStatus");
+  const ocrProgress      = document.getElementById("ocrProgress");
+  const imgPreview       = document.getElementById("imgPreview");
+  const imgPreviewWrap   = document.getElementById("imgPreviewWrap");
+  const imgDropZone      = document.getElementById("imgDropZone");
+
+  const audioBtn         = document.getElementById("audioBtn");
+  const audioTextDiv     = document.getElementById("audioText");
+  const sendAudioTextBtn = document.getElementById("sendAudioTextBtn");
+  const audioStatus      = document.getElementById("audioStatus");
+
+  const chatDiv          = document.getElementById("chat");
+  const chatInput        = document.getElementById("chatInput");
+  const sendChatBtn      = document.getElementById("sendChatBtn");
+  const emptyState       = document.getElementById("emptyState");
+
+  const newChatBtn       = document.getElementById("newChatBtn");
+  const clearChatBtn     = document.getElementById("clearChatBtn");
+  const fileList         = document.getElementById("fileList");
+  const sidebar          = document.getElementById("sidebar");
+  const sidebarOverlay   = document.getElementById("sidebarOverlay");
+  const menuToggle       = document.getElementById("menuToggle");
+  const knowledgePanel   = document.getElementById("knowledgePanel");
+  const knowledgeToggleBtn = document.getElementById("knowledgeToggleBtn");
+
+  /* ============================================================
+     INDEXED FILES TRACKER
+  ============================================================ */
+  const indexedFiles = [];
+
+  function addIndexedFile(name, type) {
+    indexedFiles.push({ name, type });
+    renderFileList();
+  }
+
+  function renderFileList() {
+    if (indexedFiles.length === 0) {
+      fileList.innerHTML = '<div style="font-size:11px;color:var(--text-3);padding:4px 8px;">No sources indexed yet</div>';
+      return;
+    }
+    const icons = { doc: "📄", image: "🖼️", audio: "🎙️" };
+    fileList.innerHTML = indexedFiles.map(f => `
+      <div class="file-chip">
+        <span class="chip-icon">${icons[f.type] || "📎"}</span>
+        <span class="chip-name" title="${f.name}">${f.name}</span>
+        <span class="chip-badge">indexed</span>
+      </div>
+    `).join("");
+  }
+
+  /* ============================================================
+     CHAT MESSAGES
+  ============================================================ */
+  let hasMessages = false;
+
+  function clearEmptyHint() {
+    if (!hasMessages) {
+      emptyState.remove();
+      hasMessages = true;
+    }
+  }
+
+  // Typing indicator element
+  let typingRow = null;
+
+  function showTyping() {
+    removeTyping();
+    typingRow = document.createElement("div");
+    typingRow.className = "msg-row bot";
+    typingRow.innerHTML = `
+      <div class="msg-avatar">✦</div>
+      <div class="typing-indicator">
+        <div class="typing-dots">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+        <span class="typing-label">Thinking…</span>
+      </div>
+    `;
+    chatDiv.appendChild(typingRow);
+    chatDiv.scrollTop = chatDiv.scrollHeight;
+  }
+
+  function removeTyping() {
+    if (typingRow) { typingRow.remove(); typingRow = null; }
+  }
+
+  function addChatMessage(text, from = "bot", isError = false) {
+    clearEmptyHint();
+    removeTyping();
+
+    const row = document.createElement("div");
+    row.className = `msg-row ${from}`;
+
+    if (from === "bot") {
+      const avatar = document.createElement("div");
+      avatar.className = "msg-avatar";
+      avatar.textContent = "✦";
+      row.appendChild(avatar);
+    }
+
+    const bubble = document.createElement("div");
+    bubble.className = "msg-bubble " + (from === "user" ? "user" : isError ? "error" : "bot");
+    bubble.textContent = text;
+    row.appendChild(bubble);
+
+    chatDiv.appendChild(row);
+    chatDiv.scrollTop = chatDiv.scrollHeight;
+  }
+
+  /* ============================================================
+     API CALLS — IDENTICAL to original (endpoint + payload unchanged)
+  ============================================================ */
+  async function callIngestText(text, sourceType, sourceName) {
+    const resp = await fetch(`${FUNCTIONS_BASE}/ingestText`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, sourceType, sourceName }),
+    });
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(errText || "Ingest failed");
+    }
+    return resp.json();
+  }
+
+  async function callChatRag(message) {
+    const resp = await fetch(`${FUNCTIONS_BASE}/chatRag`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message }),
+    });
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(errText || "Chat failed");
+    }
+    return resp.json();
+  }
+
+  /* ============================================================
+     STATUS HELPERS
+  ============================================================ */
+  function setStatus(el, msg, type = "") {
+    el.textContent = msg;
+    el.className = "card-status" + (type ? " " + type : "");
+  }
+
+  /* ============================================================
+     DOCUMENT UPLOAD (txt / pdf / docx)  — logic identical to original
+  ============================================================ */
+  // Show filename on file selection
+  textFileInput.addEventListener("change", () => {
+    const f = textFileInput.files[0];
+    if (f) {
+      docFileName.textContent = "📎 " + f.name;
+      setStatus(docStatus, "");
+    }
+  });
+
+  // Drag-and-drop visual feedback
+  docDropZone.addEventListener("dragover", e => { e.preventDefault(); docDropZone.classList.add("drag-over"); });
+  docDropZone.addEventListener("dragleave", () => docDropZone.classList.remove("drag-over"));
+  docDropZone.addEventListener("drop", e => { e.preventDefault(); docDropZone.classList.remove("drag-over"); });
+
+  uploadTextBtn.onclick = async () => {
+    const file = textFileInput.files[0];
+    if (!file) { alert("Select a file first"); return; }
+
+    const fileName = file.name || "file";
+    const ext = fileName.split(".").pop().toLowerCase();
+    let text = "";
+
+    try {
+      if (ext === "txt") {
+        text = await file.text();
+      } else if (ext === "pdf") {
+        if (!window.pdfjsLib) { alert("PDF.js not loaded"); return; }
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let fullText = "";
+        for (let p = 1; p <= pdf.numPages; p++) {
+          const page = await pdf.getPage(p);
+          const content = await page.getTextContent();
+          fullText += content.items.map(i => i.str).join(" ") + "\n";
+        }
+        text = fullText;
+      } else if (ext === "docx") {
+        if (!window.mammoth) { alert("Mammoth.js not loaded"); return; }
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await window.mammoth.extractRawText({ arrayBuffer });
+        text = result.value || "";
+      } else {
+        alert("Unsupported file type. Use .txt, .pdf or .docx");
+        return;
+      }
+    } catch (err) {
+      console.error("Error reading file:", err);
+      alert("Error reading file content.");
+      return;
+    }
+
+    if (!text || !text.trim()) { alert("No text found in the file."); return; }
+
+    uploadTextBtn.disabled = true;
+    uploadTextBtn.innerHTML = "<span>⏳</span> Indexing…";
+    docProgress.classList.add("visible");
+    setStatus(docStatus, "Uploading and indexing…");
+
+    try {
+      await callIngestText(text, "doc", fileName);
+      setStatus(docStatus, "✓ Indexed successfully", "success");
+      addIndexedFile(fileName, "doc");
+    } catch (e) {
+      console.error(e);
+      setStatus(docStatus, "✗ " + (e.message || "Ingest failed"), "error");
+    } finally {
+      uploadTextBtn.disabled = false;
+      uploadTextBtn.innerHTML = "<span>⬆</span> Upload & Index Document";
+      docProgress.classList.remove("visible");
+    }
+  };
+
+  /* ============================================================
+     IMAGE OCR — logic identical to original
+  ============================================================ */
+  imageInput.addEventListener("change", () => {
+    const f = imageInput.files[0];
+    if (f) {
+      const url = URL.createObjectURL(f);
+      imgPreview.src = url;
+      imgPreviewWrap.classList.add("visible");
+      setStatus(ocrStatus, "");
+    }
+  });
+
+  imgDropZone.addEventListener("dragover", e => { e.preventDefault(); imgDropZone.classList.add("drag-over"); });
+  imgDropZone.addEventListener("dragleave", () => imgDropZone.classList.remove("drag-over"));
+  imgDropZone.addEventListener("drop", e => { e.preventDefault(); imgDropZone.classList.remove("drag-over"); });
+
+  ocrBtn.onclick = async () => {
+    const file = imageInput.files[0];
+    if (!file) { alert("Select an image first"); return; }
+
+    ocrBtn.disabled = true;
+    ocrBtn.innerHTML = "<span>⏳</span> Running OCR…";
+    ocrProgress.classList.add("visible");
+    setStatus(ocrStatus, "Running OCR on image…");
+
+    try {
+      const imgUrl = URL.createObjectURL(file);
+      const result = await Tesseract.recognize(imgUrl, "eng");
+      const text = result.data.text;
+
+      if (!text.trim()) {
+        setStatus(ocrStatus, "✗ No text detected in image", "error");
+        return;
+      }
+
+      setStatus(ocrStatus, `Extracted ${text.length} chars — uploading…`);
+      await callIngestText(text, "image", file.name);
+      setStatus(ocrStatus, "✓ OCR text indexed successfully", "success");
+      addIndexedFile(file.name, "image");
+    } catch (e) {
+      console.error(e);
+      setStatus(ocrStatus, "✗ " + (e.message || "OCR failed"), "error");
+    } finally {
+      ocrBtn.disabled = false;
+      ocrBtn.innerHTML = "<span>🔍</span> Extract & Index via OCR";
+      ocrProgress.classList.remove("visible");
+    }
+  };
+
+  /* ============================================================
+     AUDIO / WEB SPEECH API — logic identical to original
+  ============================================================ */
+  let recognition = null;
+  let listening = false;
+  let audioTextBuffer = "";
+
+  if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SR();
+    recognition.lang = "en-US";
+    recognition.interimResults = true;
+    recognition.continuous = true;
+
+    recognition.onresult = (event) => {
+      let finalTranscript = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const t = event.results[i][0].transcript;
+        if (event.results[i].isFinal) finalTranscript += t + " ";
+      }
+      if (finalTranscript) {
+        audioTextBuffer += finalTranscript;
+        audioTextDiv.textContent = audioTextBuffer;
+        audioTextDiv.classList.add("visible");
+      }
+    };
+
+    recognition.onend = () => {
+      listening = false;
+      audioBtn.textContent = "🎙 Start Recording";
+      audioBtn.classList.remove("recording");
+    };
+  } else {
+    audioBtn.disabled = true;
+    setStatus(audioStatus, "Web Speech API not supported. Try Chrome.", "error");
+  }
+
+  audioBtn.onclick = () => {
+    if (!recognition) return;
+    if (!listening) {
+      audioTextBuffer = "";
+      audioTextDiv.textContent = "";
+      audioTextDiv.classList.add("visible");
+      setStatus(audioStatus, "🔴 Listening…");
+      recognition.start();
+      listening = true;
+      audioBtn.innerHTML = "■ Stop Recording";
+      audioBtn.classList.add("recording");
+    } else {
+      recognition.stop();
+      setStatus(audioStatus, "Recording stopped.");
+    }
+  };
+
+  sendAudioTextBtn.onclick = async () => {
+    if (!audioTextBuffer.trim()) { alert("No transcribed text yet"); return; }
+    sendAudioTextBtn.disabled = true;
+    sendAudioTextBtn.textContent = "⏳ Uploading…";
+    try {
+      await callIngestText(audioTextBuffer, "audio", "mic");
+      setStatus(audioStatus, "✓ Transcript indexed successfully", "success");
+      addIndexedFile("Mic transcript", "audio");
+    } catch (e) {
+      console.error(e);
+      setStatus(audioStatus, "✗ " + (e.message || "Upload failed"), "error");
+    } finally {
+      sendAudioTextBtn.disabled = false;
+      sendAudioTextBtn.textContent = "⬆ Upload Transcript";
+    }
+  };
+
+  /* ============================================================
+     CHAT — logic identical to original
+  ============================================================ */
+  async function sendChat() {
+    const msg = chatInput.value.trim();
+    if (!msg) return;
+
+    addChatMessage(msg, "user");
+    chatInput.value = "";
+    chatInput.style.height = "auto";
+
+    sendChatBtn.disabled = true;
+    showTyping();
+
+    try {
+      const resp = await callChatRag(msg);
+      removeTyping();
+      addChatMessage(resp.answer || "(no answer)", "bot");
+    } catch (e) {
+      console.error(e);
+      removeTyping();
+      addChatMessage("Error: " + e.message, "bot", true);
+    } finally {
+      sendChatBtn.disabled = false;
+    }
+  }
+
+  sendChatBtn.onclick = sendChat;
+
+  chatInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendChat();
+    }
+  });
+
+  // Auto-resize textarea
+  chatInput.addEventListener("input", () => {
+    chatInput.style.height = "auto";
+    chatInput.style.height = Math.min(chatInput.scrollHeight, 150) + "px";
+  });
+
+  // Suggestion buttons
+  document.querySelectorAll(".suggestion-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      chatInput.value = btn.dataset.msg;
+      chatInput.focus();
+      sendChat();
+    });
+  });
+
+  /* ============================================================
+     CLEAR CHAT
+  ============================================================ */
+  clearChatBtn.onclick = () => {
+    chatDiv.innerHTML = `
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">✦</div>
+        <div class="empty-title">Ask anything about your knowledge</div>
+        <div class="empty-sub">Upload a document, image, or audio recording on the left, then ask a question below.</div>
+        <div class="suggestion-grid">
+          <button class="suggestion-btn" data-msg="What is the main topic of this document?">📄 What is the main topic of this document?</button>
+          <button class="suggestion-btn" data-msg="Summarize the uploaded file for me.">📝 Summarize the uploaded file</button>
+          <button class="suggestion-btn" data-msg="What does this image show?">🖼️ What does this image show?</button>
+          <button class="suggestion-btn" data-msg="Explain the important findings.">🔍 Explain the important findings</button>
+        </div>
+      </div>`;
+    hasMessages = false;
+    document.querySelectorAll(".suggestion-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        chatInput.value = btn.dataset.msg;
+        sendChat();
+      });
+    });
+  };
+
+  newChatBtn.onclick = () => clearChatBtn.click();
+
+  /* ============================================================
+     MIC BUTTON in CHAT COMPOSER (hooks into same speech system)
+  ============================================================ */
+  const micChatBtn = document.getElementById("micChatBtn");
+  let micChatListening = false;
+  let micChatRecognition = null;
+
+  if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
+    const SR2 = window.SpeechRecognition || window.webkitSpeechRecognition;
+    micChatRecognition = new SR2();
+    micChatRecognition.lang = "en-US";
+    micChatRecognition.interimResults = false;
+    micChatRecognition.continuous = false;
+
+    micChatRecognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      chatInput.value = transcript;
+      chatInput.style.height = "auto";
+      chatInput.style.height = Math.min(chatInput.scrollHeight, 150) + "px";
+    };
+
+    micChatRecognition.onend = () => {
+      micChatListening = false;
+      micChatBtn.textContent = "🎤";
+      micChatBtn.style.color = "";
+    };
+  }
+
+  micChatBtn.onclick = () => {
+    if (!micChatRecognition) { alert("Speech not supported in this browser"); return; }
+    if (!micChatListening) {
+      micChatRecognition.start();
+      micChatListening = true;
+      micChatBtn.textContent = "🔴";
+      micChatBtn.style.color = "#f87171";
+    } else {
+      micChatRecognition.stop();
+    }
+  };
+
+  /* ============================================================
+     MOBILE SIDEBAR TOGGLE
+  ============================================================ */
+  menuToggle.onclick = () => {
+    sidebar.classList.toggle("open");
+    sidebarOverlay.classList.toggle("active");
+  };
+  sidebarOverlay.onclick = () => {
+    sidebar.classList.remove("open");
+    sidebarOverlay.classList.remove("active");
+    knowledgePanel.classList.remove("open");
+  };
+
+  // Knowledge panel toggle on mobile
+  function updateResponsive() {
+    if (window.innerWidth <= 900) {
+      knowledgeToggleBtn.style.display = "flex";
+    } else {
+      knowledgeToggleBtn.style.display = "none";
+      knowledgePanel.classList.remove("open");
+    }
+  }
+  knowledgeToggleBtn.onclick = () => {
+    knowledgePanel.classList.toggle("open");
+    sidebarOverlay.classList.toggle("active");
+  };
+  window.addEventListener("resize", updateResponsive);
+  updateResponsive();
+</script>
+</body>
+</html>
