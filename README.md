@@ -84,5 +84,3 @@ firebase.json
 ## 🤝 Credits
 Firebase, Gemini, Tesseract.js, PDF.js, Mammoth.js
 
-## ❤️ About  
-Built by **Sampurn Gupta** to explore multimodal RAG and cloud deployment.
