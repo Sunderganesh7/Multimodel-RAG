@@ -436,7 +436,8 @@ docs/
 
 Example:
 
-![Multimodal RAG Chatbot](docs/dashboard.png)
+<img width="1915" height="868" alt="image" src="https://github.com/user-attachments/assets/50e2ec20-2809-4dfa-8008-3cc5939caa5e" />
+
 
 ---
 
